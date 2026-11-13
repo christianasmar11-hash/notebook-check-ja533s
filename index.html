@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#ffffff">
+<title>Notebook Check Grader</title>
+<style>
+:root{--ink:#111;--ink2:#555;--ink3:#8a8a8a;--line:#e7e7e7;--line2:#f0f0f0;--chip:#fff;--chipb:#dcdcdc;--on:#111;--onink:#fff;--ok:#1a7f37;--accent:#1F6FEB;--bg:#fff;--card:#fff;--track:#eee}
+@media (prefers-color-scheme:dark){:root{--ink:#f2f2f2;--ink2:#b5b5b5;--ink3:#8a8a8a;--line:#2a2a2a;--line2:#222;--chip:#161616;--chipb:#333;--on:#f2f2f2;--onink:#111;--ok:#4ac26b;--accent:#4c8dff;--bg:#0d0d0d;--card:#141414;--track:#262626}}
+*{box-sizing:border-box}
+body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--ink);background:var(--bg);-webkit-text-size-adjust:100%}
+.wrap{max-width:700px;margin:0 auto;padding:24px 16px 110px}
+h1{font-size:28px;margin:0 0 8px;letter-spacing:-.02em}
+.sum{color:var(--ink2);font-size:15px;line-height:1.45;margin:0 0 20px}
+.metric{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:8px;background:var(--card)}
+.mv{font-size:30px;font-weight:650;font-variant-numeric:tabular-nums}.ml{font-size:13px;color:var(--ink2)}.md{font-size:13px;color:var(--ink3)}
+.bar{height:6px;border-radius:9px;background:var(--track);overflow:hidden;margin:8px 0 4px}.bar>div{height:100%;width:0;background:var(--accent);border-radius:9px;transition:width .2s}
+h2{font-size:18px;margin:28px 0 10px;letter-spacing:-.01em}
+label{display:block;font-size:13px;color:var(--ink2);margin:12px 0 4px}
+input[type=text],input[type=search],select{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--card);border:1px solid var(--chipb);border-radius:10px;padding:11px 12px;outline:none;-webkit-appearance:none;appearance:none}
+input:focus,select:focus{border-color:var(--accent)}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--ink2) 50%),linear-gradient(135deg,var(--ink2) 50%,transparent 50%);background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px;background-repeat:no-repeat}
+.tg{display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-size:15px;cursor:pointer;min-height:44px}
+.sw{width:46px;height:28px;border-radius:14px;background:var(--chipb);position:relative;transition:background .15s;flex-shrink:0}.sw:after{content:"";position:absolute;left:3px;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.tg.on .sw{background:var(--accent)}.tg.on .sw:after{left:21px}
+.group{margin-top:28px}
+.ghead{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;padding:0;font:inherit;color:var(--ink);cursor:pointer;text-align:left;min-height:44px}
+.ghead .t{font-size:19px;font-weight:650;letter-spacing:-.01em}.ghead .chev{font-size:14px;color:var(--ink3);transition:transform .15s}
+.group.closed .chev{transform:rotate(-90deg)}.group.closed .gbody{display:none}
+.gcap{font-size:13px;color:var(--ink3);margin-top:-2px}
+.card{padding:16px 0 18px;border-bottom:1px solid var(--line2)}
+.top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.nm{font-size:18px;font-weight:600}.st{font-size:13px;font-weight:600;color:var(--ink3);font-variant-numeric:tabular-nums}.st.ok{color:var(--ok)}
+.cap{font-size:12px;color:var(--ink3);margin-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:6px}
+.chip{min-height:44px;border-radius:8px;border:1px solid var(--chipb);background:var(--chip);font:inherit;font-size:16px;font-weight:600;color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums;-webkit-tap-highlight-color:transparent;transition:background .1s}
+.chip.on{background:var(--on);color:var(--onink);border-color:var(--on)}.chip.w{padding:0 14px;min-width:68px}
+.row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;margin-top:12px}
+.pf{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pf .cap{margin:0 2px 0 0}
+.clear{border:none;background:none;text-decoration:underline;color:var(--ink2);font:inherit;font-size:14px;min-height:44px;padding:0 10px;cursor:pointer}
+pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;max-height:320px;overflow:auto;margin:0}
+.note{font-size:13px;color:var(--ink2);line-height:1.45;margin:12px 0;border-left:3px solid var(--accent);padding:6px 10px}
+.btn{font:inherit;font-size:15px;font-weight:600;border-radius:999px;padding:11px 18px;border:1px solid var(--chipb);background:var(--card);color:var(--ink);cursor:pointer;min-height:44px}
+.btn.p{background:var(--on);color:var(--onink);border-color:var(--on)}
+.float{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(12px + env(safe-area-inset-bottom));width:calc(100% - 24px);max-width:676px;background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 6px 20px rgba(0,0,0,.10);padding:8px 8px 8px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;font-size:14px;font-weight:600}
+.float .r{display:flex;gap:6px;flex-wrap:wrap}
+.empty{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Notebook Check Grader</h1>
+  <p class="sum">Find the student, tap how many notebooks they have, and mark Escuela de Profecía. When you finish, tap Copy results and paste it into the shared note.</p>
+
+  <div class="metric">
+    <div class="mv" id="mTotal">0 / 68</div>
+    <div class="ml">Students graded</div>
+    <div class="md" id="mLeft">68 left</div>
+    <div class="bar"><div id="mBar"></div></div>
+  </div>
+
+  <h2>Check details</h2>
+  <label for="helper">Helper name</label>
+  <input type="text" id="helper" placeholder="Your name" autocomplete="name">
+  <label for="date">Check date</label>
+  <input type="text" id="date" placeholder="11/12/2026">
+  <label for="max">Most notebooks this month</label>
+  <select id="max"><option value="12">12 notes</option><option value="13">13 notes</option><option value="14">14 notes</option><option value="15">15 notes</option><option value="16">16 notes</option></select>
+
+  <h2>Find a student</h2>
+  <label for="q">Search</label>
+  <input type="search" id="q" placeholder="Name or group" autocomplete="off">
+  <div class="tg" id="ungraded" role="switch" aria-checked="false" tabindex="0"><span>Show ungraded only</span><span class="sw"></span></div>
+
+  <div id="groups"></div>
+
+  <h2>Results to paste</h2>
+  <div class="cap">Only graded students are listed. Format: notebooks, Escuela de Profecía.</div>
+  <pre id="out"></pre>
+  <div class="note">Grades are saved in this browser, so they stay if you close the page, but they do not sync to other phones. Start a new check clears the grades and keeps your name.</div>
+  <button class="btn" id="reset">Start a new check</button>
+</div>
+
+<div class="float">
+  <span id="fStatus">0 of 68 graded</span>
+  <div class="r"><button class="btn p" id="copy">Copy results</button><button class="btn" id="totop" aria-label="Back to top">↑</button></div>
+</div>
+
+<script>
+(function(){
+var GROUPS=[
+ {id:"directors",name:"Directors",students:["Abigail Martinez","Alex Lopez","Andrea Cruz","Belen Terrones","Christian Asmar","Deborah Rodriguez","Jairo Flores","Kamila Toledo","Karen Lopez","Karina Cruz","Leyla Oscal","Nohemi Ponce","Riena Toledo","Sheily Asmar","Sophia Rodriguez","Sulma Ibañez","Valerie Cuevas","Ximena"]},
+ {id:"panderos",name:"Panderos",students:["Abi Ramirez","Ariana Ochoa","Aylin Diaz","Damaris Arredondo","Danna Cisneros","Diane Rodas","Dyane Rodriguez","Faride Garcia","Gabriela Ramirez","Geraldine Morales","Isabella Garcia","Jocelyn Archila","Johanna Hernandez","Josselin Mendoza","Keila Sierra","Madai Ramirez","Nahomi Osorio","Naomy Martinez","Nicole Linares","Rocio Rivera","Sophia Portillo"]},
+ {id:"corros",name:"Corros",students:["Benjamin Cisneros","Bryan Morales","David Lainez","David Martinez","David Meneses","Elias Toledo","Emmanuel Toledo","Esteban Ramirez","Judah Pascual","Matthew Escobar","Matthew Pascual","Timmothy","Victor Garcia"]},
+ {id:"ninas",name:"Niñas",students:["Adriel Mendoza","Alegria","Berenice Ramirez","Elisa Monzon","Emma Herrera","Genesis Pineda","Jade Rojas","Jubilee Rivera","Leila Miguel","Sophia Diaz","Sophia Garcia"]},
+ {id:"miriams",name:"Miriams",students:["Angelina Tayun","Keidy Lobo","Norma Guevara"]},
+ {id:"banderas",name:"Banderas",students:["Katherine Escobar","Natalia Granillo"]}
+];
+var TOTAL=GROUPS.reduce(function(s,g){return s+g.students.length},0);
+var KEY="danza-notebook-check-grader-v1";
+var MAXES=["12","13","14","15","16"];
+function today(){var d=new Date();return (d.getMonth()+1)+"/"+d.getDate()+"/"+d.getFullYear();}
+function fresh(){return {helper:"",date:today(),max:"12",grades:{}};}
+function load(){try{var r=localStorage.getItem(KEY);if(!r)return fresh();var p=JSON.parse(r);return {helper:typeof p.helper==="string"?p.helper:"",date:(typeof p.date==="string"&&p.date)?p.date:today(),max:MAXES.indexOf(p.max)>=0?p.max:"12",grades:(p.grades&&typeof p.grades==="object")?p.grades:{}};}catch(e){return fresh();}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+var S=load(),closed={},query="",ungradedOnly=false;
+function k(g,s){return g+":"+s;}
+function graded(x){return !!(x&&typeof x.n==="number");}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+var $=function(id){return document.getElementById(id);};
+
+function output(){
+  var L=["Notebook Check - "+S.date.trim()+" - Helper: "+(S.helper.trim()||"(name)")];
+  GROUPS.forEach(function(g){
+    var done=g.students.filter(function(s){return graded(S.grades[k(g.id,s)]);});
+    if(!done.length)return;
+    L.push("");L.push("["+g.name+"]");
+    done.forEach(function(s){var x=S.grades[k(g.id,s)];L.push(s+": "+x.n+", "+x.p);});
+  });
+  return L.join("\n");
+}
+
+function render(){
+  var max=parseInt(S.max,10)||12,q=query.trim().toLowerCase(),html="",total=0;
+  GROUPS.forEach(function(g){
+    var gd=g.students.filter(function(s){return graded(S.grades[k(g.id,s)]);}).length;total+=gd;
+    var gm=q&&g.name.toLowerCase().indexOf(q)>=0;
+    var list=g.students.filter(function(s){
+      if(ungradedOnly&&graded(S.grades[k(g.id,s)]))return false;
+      if(!q||gm)return true;return s.toLowerCase().indexOf(q)>=0;
+    });
+    if(!list.length)return;
+    var pct=Math.round(gd/g.students.length*100);
+    html+='<section class="group'+(closed[g.id]?' closed':'')+'" id="'+g.id+'"><button class="ghead" data-toggle="'+g.id+'" aria-expanded="'+(!closed[g.id])+'"><span class="t">'+esc(g.name)+' · '+g.students.length+'</span><span class="chev">▼</span></button><div class="gcap">Graded '+gd+' of '+g.students.length+'</div><div class="bar"><div style="width:'+pct+'%"></div></div><div class="gbody">';
+    list.forEach(function(s){
+      var key=k(g.id,s),x=S.grades[key],isG=graded(x),p=x?x.p:0,chips="";
+      for(var v=0;v<=max;v++)chips+='<button class="chip'+(isG&&x.n===v?' on':'')+'" data-k="'+esc(key)+'" data-n="'+v+'" aria-label="'+esc(s)+': '+v+' notebooks">'+v+'</button>';
+      html+='<div class="card"><div class="top"><span class="nm">'+esc(s)+'</span><span class="st'+(isG?' ok':'')+'">'+(isG?x.n+' notes · Profecía '+x.p:'Not graded')+'</span></div><div class="cap">Notebooks</div><div class="grid">'+chips+'</div><div class="row"><div class="pf"><span class="cap">Escuela de Profecía</span><button class="chip w'+(p===1?' on':'')+'" data-k="'+esc(key)+'" data-p="1">Yes · 1</button><button class="chip w'+(p===0?' on':'')+'" data-k="'+esc(key)+'" data-p="0">No · 0</button></div>'+(isG?'<button class="clear" data-k="'+esc(key)+'" data-clear="1">Clear</button>':'')+'</div></div>';
+    });
+    html+='</div></section>';
+  });
+  $("groups").innerHTML=html;
+  $("mTotal").textContent=total+" / "+TOTAL;
+  $("mLeft").textContent=(TOTAL-total)+" left";
+  $("mBar").style.width=Math.round(total/TOTAL*100)+"%";
+  $("fStatus").textContent=total+" of "+TOTAL+" graded";
+  $("out").textContent=output();
+}
+
+$("groups").addEventListener("click",function(e){
+  var b=e.target.closest("button");if(!b)return;
+  if(b.dataset.toggle){closed[b.dataset.toggle]=!closed[b.dataset.toggle];render();return;}
+  var key=b.dataset.k;if(!key)return;
+  var cur=S.grades[key];
+  if(b.dataset.clear){delete S.grades[key];}
+  else if(b.dataset.n!==undefined){S.grades[key]={n:parseInt(b.dataset.n,10),p:cur?cur.p:0};}
+  else if(b.dataset.p!==undefined){S.grades[key]={n:cur?cur.n:undefined,p:parseInt(b.dataset.p,10)};}
+  save();render();
+});
+$("helper").value=S.helper;$("date").value=S.date;$("max").value=S.max;
+$("helper").addEventListener("input",function(e){S.helper=e.target.value;save();$("out").textContent=output();});
+$("date").addEventListener("input",function(e){S.date=e.target.value;save();$("out").textContent=output();});
+$("max").addEventListener("change",function(e){S.max=e.target.value;save();render();});
+$("q").addEventListener("input",function(e){query=e.target.value;render();});
+function tog(){ungradedOnly=!ungradedOnly;var t=$("ungraded");t.classList.toggle("on",ungradedOnly);t.setAttribute("aria-checked",String(ungradedOnly));render();}
+$("ungraded").addEventListener("click",tog);
+$("ungraded").addEventListener("keydown",function(e){if(e.key===" "||e.key==="Enter"){e.preventDefault();tog();}});
+function flash(msg){var f=$("fStatus");f.textContent=msg;setTimeout(render,2500);}
+function fallbackCopy(t){try{var a=document.createElement("textarea");a.value=t;a.setAttribute("readonly","");a.style.position="absolute";a.style.left="-9999px";document.body.appendChild(a);a.select();a.setSelectionRange(0,t.length);var ok=document.execCommand("copy");document.body.removeChild(a);return ok;}catch(e){return false;}}
+$("copy").addEventListener("click",function(){
+  var t=output();
+  if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(t).then(function(){flash("Copied");},function(){flash(fallbackCopy(t)?"Copied":"Select the results box to copy");});}
+  else flash(fallbackCopy(t)?"Copied":"Select the results box to copy");
+});
+var armed=false;
+$("reset").addEventListener("click",function(){
+  var b=$("reset");
+  if(!armed){armed=true;b.textContent="Tap again to clear all grades";setTimeout(function(){armed=false;b.textContent="Start a new check";},4000);return;}
+  armed=false;b.textContent="Start a new check";
+  S={helper:S.helper,date:today(),max:S.max,grades:{}};$("date").value=S.date;save();render();
+});
+$("totop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
+render();
+})();
+</script>
+</body>
+</html>
