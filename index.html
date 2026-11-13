@@ -45,6 +45,7 @@ input:focus{border-color:var(--accent)}
 .clear{border:none;background:none;text-decoration:underline;color:var(--ink2);font:inherit;font-size:14px;min-height:40px;padding:0 4px;cursor:pointer}
 pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;max-height:320px;overflow:auto;margin:0}
 .cap{font-size:12px;color:var(--ink3);margin-bottom:6px}
+.need{display:none;font-size:13px;font-weight:600;color:var(--bad);margin:6px 0 0}.need.show{display:block}input.warn{border-color:var(--bad)}
 .note{font-size:13px;color:var(--ink2);line-height:1.45;margin:12px 0;border-left:3px solid var(--accent);padding:6px 10px}
 .btn{font:inherit;font-size:15px;font-weight:600;border-radius:999px;padding:11px 18px;border:1px solid var(--chipb);background:var(--card);color:var(--ink);cursor:pointer;min-height:44px}
 .btn.p{background:var(--on);color:var(--onink);border-color:var(--on)}
@@ -68,7 +69,8 @@ pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-R
 
   <h2>Check details</h2>
   <label for="helper">Helper name</label>
-  <input type="text" id="helper" placeholder="Your name" autocomplete="name">
+  <input type="text" id="helper" placeholder="Your name (required)" autocomplete="name">
+  <div class="need" id="needHelper">Add your name first so we know who graded each student.</div>
   <label for="date">Check date</label>
   <input type="text" id="date" placeholder="11/12/2026">
 
@@ -186,7 +188,7 @@ var inflight={},timer=null;
 function enqueue(key,value){
   if(!SYNC_ON||!BY[key])return;
   var prev=Q[key];
-  Q[key]={v:value,a:0,t:0,seq:(prev?prev.seq:0)+1};
+  Q[key]={v:value,h:S.helper.trim(),a:0,t:0,seq:(prev?prev.seq:0)+1};
   saveQ();SYNC[key]="saving";pump();
 }
 function pump(){
@@ -205,7 +207,7 @@ function send(key,job){
   var seq=job.seq,m=BY[key];
   var ctl=typeof AbortController!=="undefined"?new AbortController():null;
   var to=setTimeout(function(){if(ctl)ctl.abort();},20000);
-  fetch(WEBAPP_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:SYNC_TOKEN,tab:m.tab,name:m.name,value:job.v===null?"":job.v,helper:S.helper.trim(),date:S.date.trim()}),signal:ctl?ctl.signal:undefined})
+  fetch(WEBAPP_URL,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({token:SYNC_TOKEN,tab:m.tab,name:m.name,value:job.v===null?"":job.v,helper:job.h||S.helper.trim(),date:S.date.trim()}),signal:ctl?ctl.signal:undefined})
   .then(function(r){return r.json();})
   .then(function(res){
     clearTimeout(to);inflight[key]=false;
@@ -234,12 +236,14 @@ $("groups").addEventListener("click",function(e){
   if(b.dataset.toggle){closed[b.dataset.toggle]=!closed[b.dataset.toggle];render();return;}
   if(b.dataset.retry){var rk=b.dataset.retry;if(Q[rk]){Q[rk].t=0;}else{enqueue(rk,has(rk)?S.grades[rk]:null);}pump();render();return;}
   var key=b.dataset.k;if(!key)return;
+  if(!S.helper.trim()){askHelper();return;}
   if(b.dataset.clear){delete S.grades[key];save();enqueue(key,null);}
   else if(b.dataset.n!==undefined){var nv=parseInt(b.dataset.n,10);if(S.grades[key]===nv){render();return;}S.grades[key]=nv;save();enqueue(key,nv);}
   render();
 });
 $("helper").value=S.helper;$("date").value=S.date;
-$("helper").addEventListener("input",function(e){S.helper=e.target.value;save();$("out").textContent=output();});
+function askHelper(){var h=$("helper");$("needHelper").classList.add("show");h.classList.add("warn");h.scrollIntoView({behavior:"smooth",block:"center"});setTimeout(function(){h.focus();},350);flash("Add your name first");}
+$("helper").addEventListener("input",function(e){S.helper=e.target.value;save();if(S.helper.trim()){$("needHelper").classList.remove("show");e.target.classList.remove("warn");}$("out").textContent=output();});
 $("date").addEventListener("input",function(e){S.date=e.target.value;save();$("out").textContent=output();});
 $("q").addEventListener("input",function(e){query=e.target.value;render();});
 function tog(){ungradedOnly=!ungradedOnly;var t=$("ungraded");t.classList.toggle("on",ungradedOnly);t.setAttribute("aria-checked",String(ungradedOnly));render();}
