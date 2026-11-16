@@ -32,7 +32,11 @@ input:focus{border-color:var(--accent)}
 .ghead .t{font-size:19px;font-weight:650;letter-spacing:-.01em}.ghead .chev{font-size:14px;color:var(--ink3);transition:transform .15s}
 .group.closed .chev{transform:rotate(-90deg)}.group.closed .gbody{display:none}
 .gcap{font-size:13px;color:var(--ink3);margin-top:-2px}
-.card{padding:16px 0 18px;border-bottom:1px solid var(--line2)}
+.card{padding:16px 0 18px;border-bottom:1px solid var(--line2);overflow:hidden}
+.submitted-msg{color:var(--ok);font-size:15px;font-weight:650;display:inline-flex;align-items:center;gap:6px}
+.card.leaving{opacity:0;max-height:0!important;padding-top:0;padding-bottom:0;border-bottom-color:transparent;pointer-events:none;transition:opacity .35s ease,max-height .35s ease,padding .35s ease,border-color .35s ease}
+.gdone{font-size:13px;color:var(--ok);font-weight:600;padding:12px 0 2px}
+@media (prefers-reduced-motion:reduce){.card.leaving{transition:none}}
 .top{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px;margin-bottom:10px}
 .nm{font-size:18px;font-weight:600}
 .st{font-size:13px;font-weight:600;color:var(--ink3);font-variant-numeric:tabular-nums;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
@@ -77,7 +81,7 @@ pre{white-space:pre-wrap;word-break:break-word;font-family:ui-monospace,SFMono-R
   <h2>Find a student</h2>
   <label for="q">Search</label>
   <input type="search" id="q" placeholder="Name or group" autocomplete="off">
-  <div class="tg" id="ungraded" role="switch" aria-checked="false" tabindex="0"><span>Show ungraded only</span><span class="sw"></span></div>
+  <div class="tg" id="ungraded" role="switch" aria-checked="false" tabindex="0"><span>Show already submitted</span><span class="sw"></span></div>
 
   <div id="groups"></div>
 
@@ -114,12 +118,40 @@ function load(){try{var r=localStorage.getItem(KEY);if(!r)return fresh();var p=J
 function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 function loadQ(){try{var q=JSON.parse(localStorage.getItem(QKEY)||"{}");return (q&&typeof q==="object")?q:{};}catch(e){return {};}}
 function saveQ(){try{localStorage.setItem(QKEY,JSON.stringify(Q));}catch(e){}}
-var S=load(),Q=loadQ(),SYNC={},closed={},query="",ungradedOnly=false;
+var S=load(),Q=loadQ(),SYNC={},closed={},query="",showSubmitted=false,HOLD={};
 // SYNC[key] = "saving" | "saved" | "retry" | "error:<msg>"
 for(var qk in Q){SYNC[qk]="retry";}
 var BY={};GROUPS.forEach(function(g){g.students.forEach(function(st){BY[g.id+":"+st.d]={tab:g.tab,name:st.s};});});
 function k(g,s){return g+":"+s;}
 function has(key){return typeof S.grades[key]==="number";}
+function isDone(key){
+  if(!has(key))return false;
+  if(!SYNC_ON)return true;
+  if(Q[key])return false;
+  var s=SYNC[key];
+  if(s==="saving"||s==="retry"||(s&&s.indexOf("error:")===0))return false;
+  return true;
+}
+function cardEl(key){
+  var cards=document.querySelectorAll("[data-card]");
+  for(var i=0;i<cards.length;i++) if(cards[i].getAttribute("data-card")===key) return cards[i];
+  return null;
+}
+function holdThenHide(key){
+  if(showSubmitted)return;
+  if(HOLD[key]&&HOLD[key].tid)clearTimeout(HOLD[key].tid);
+  HOLD[key]={phase:"show",tid:setTimeout(function(){startLeave(key);},1500)};
+}
+function startLeave(key){
+  if(showSubmitted){delete HOLD[key];render();return;}
+  var el=cardEl(key);
+  if(!el){delete HOLD[key];render();return;}
+  HOLD[key]={phase:"leave"};
+  el.style.maxHeight=el.offsetHeight+"px";
+  void el.offsetHeight;
+  el.classList.add("leaving");
+  setTimeout(function(){delete HOLD[key];render();},380);
+}
 function esc(t){return String(t).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 var $=function(id){return document.getElementById(id);};
 
@@ -140,7 +172,7 @@ function statusHtml(key){
   var s=SYNC[key];
   if(!s)return "";
   if(s==="saving")return '<span class="wait">Saving…</span>';
-  if(s==="saved")return '<span class="ok">Saved ✓</span>';
+  if(s==="saved")return '<span class="ok submitted-msg">✓ Submitted</span>';
   if(s==="retry")return '<span class="bad">Not saved</span><button class="retry" data-retry="'+esc(key)+'">Retry</button>';
   if(s.indexOf("error:")===0)return '<span class="bad">Not saved: '+esc(s.slice(6))+'</span>';
   return "";
@@ -161,17 +193,34 @@ function render(){
     var gd=g.students.filter(function(st){return has(k(g.id,st.d));}).length;total+=gd;
     var gm=q&&g.name.toLowerCase().indexOf(q)>=0;
     var list=g.students.filter(function(st){
-      if(ungradedOnly&&has(k(g.id,st.d)))return false;
-      if(!q||gm)return true;return st.d.toLowerCase().indexOf(q)>=0;
+      var key=k(g.id,st.d);
+      var nameHit=st.d.toLowerCase().indexOf(q)>=0;
+      if(q&&!gm&&!nameHit)return false;
+      var hold=HOLD[key];
+      if(hold&&hold.phase==="show")return true;
+      if(hold&&hold.phase==="leave")return false;
+      if(isDone(key)&&!showSubmitted) return !!(q&&!gm&&nameHit);
+      return true;
     });
-    if(!list.length)return;
+    if(!list.length){
+      if(q&&!gm)return;
+      if(g.students.some(function(st){return !isDone(k(g.id,st.d));}))return;
+    }
     var pct=Math.round(gd/g.students.length*100);
     html+='<section class="group'+(closed[g.id]?' closed':'')+'" id="'+g.id+'"><button class="ghead" data-toggle="'+g.id+'" aria-expanded="'+(!closed[g.id])+'"><span class="t">'+esc(g.name)+' · '+g.students.length+'</span><span class="chev">▼</span></button><div class="gcap">Graded '+gd+' of '+g.students.length+'</div><div class="bar"><div style="width:'+pct+'%"></div></div><div class="gbody">';
+    if(!list.length){
+      html+='<div class="gdone">All done</div>';
+    }else{
     list.forEach(function(st){
-      var key=k(g.id,st.d),isG=has(key),n=S.grades[key],chips="";
+      var key=k(g.id,st.d),isG=has(key),n=S.grades[key],holding=HOLD[key]&&HOLD[key].phase==="show",chips="";
+      if(holding){
+        html+='<div class="card" data-card="'+esc(key)+'"><div class="top"><span class="nm">'+esc(st.d)+'</span><span class="st"><span class="ok submitted-msg">✓ Submitted</span></span></div></div>';
+        return;
+      }
       for(var v=0;v<=MAX_NOTES;v++)chips+='<button class="chip'+(isG&&n===v?' on':'')+'" data-k="'+esc(key)+'" data-n="'+v+'" aria-label="'+esc(st.d)+': '+v+' notebooks">'+v+'</button>';
       html+='<div class="card" data-card="'+esc(key)+'"><div class="top"><span class="nm">'+esc(st.d)+'</span><span class="st">'+(isG?'<span class="g">'+n+' / '+MAX_NOTES+'</span>':'Not graded')+statusHtml(key)+'</span></div><div class="grid">'+chips+'</div>'+(isG?'<div class="row"><button class="clear" data-k="'+esc(key)+'" data-clear="1">Clear</button></div>':'')+'</div>';
     });
+    }
     html+='</div></section>';
   });
   $("groups").innerHTML=html;
@@ -213,7 +262,7 @@ function send(key,job){
     clearTimeout(to);inflight[key]=false;
     var cur=Q[key];
     if(res&&res.ok){
-      if(cur&&cur.seq===seq){delete Q[key];SYNC[key]="saved";}
+      if(cur&&cur.seq===seq){delete Q[key];SYNC[key]="saved";if(job.v!==null&&job.v!=="")holdThenHide(key);}
     }else{
       var code=res&&res.error||"server_error";
       if(code==="busy"||code==="server_error"){fail(key,seq);}
@@ -246,7 +295,7 @@ function askHelper(){var h=$("helper");$("needHelper").classList.add("show");h.c
 $("helper").addEventListener("input",function(e){S.helper=e.target.value;save();if(S.helper.trim()){$("needHelper").classList.remove("show");e.target.classList.remove("warn");}$("out").textContent=output();});
 $("date").addEventListener("input",function(e){S.date=e.target.value;save();$("out").textContent=output();});
 $("q").addEventListener("input",function(e){query=e.target.value;render();});
-function tog(){ungradedOnly=!ungradedOnly;var t=$("ungraded");t.classList.toggle("on",ungradedOnly);t.setAttribute("aria-checked",String(ungradedOnly));render();}
+function tog(){showSubmitted=!showSubmitted;var t=$("ungraded");t.classList.toggle("on",showSubmitted);t.setAttribute("aria-checked",String(showSubmitted));render();}
 $("ungraded").addEventListener("click",tog);
 $("ungraded").addEventListener("keydown",function(e){if(e.key===" "||e.key==="Enter"){e.preventDefault();tog();}});
 function flash(msg){$("fStatus").textContent=msg;setTimeout(render,2500);}
@@ -261,7 +310,7 @@ $("reset").addEventListener("click",function(){
   var b=$("reset");
   if(!armed){armed=true;b.textContent="Tap again to clear this phone's list";setTimeout(function(){armed=false;b.textContent="Start a new check";},4000);return;}
   armed=false;b.textContent="Start a new check";
-  S={helper:S.helper,date:today(),grades:{}};SYNC={};$("date").value=S.date;save();render();
+  S={helper:S.helper,date:today(),grades:{}};SYNC={};HOLD={};$("date").value=S.date;save();render();
 });
 $("totop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
 render();pump();
