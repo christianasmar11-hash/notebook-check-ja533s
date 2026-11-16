@@ -120,17 +120,89 @@ function loadQ(){try{var q=JSON.parse(localStorage.getItem(QKEY)||"{}");return (
 function saveQ(){try{localStorage.setItem(QKEY,JSON.stringify(Q));}catch(e){}}
 var S=load(),Q=loadQ(),SYNC={},closed={},query="",showSubmitted=false,HOLD={};
 // SYNC[key] = "saving" | "saved" | "retry" | "error:<msg>"
+var BY={},REMOTE={grades:{},loaded:false},stateTimer=null;
+S.grades=migrateKeys(S.grades);Q=migrateKeys(Q);save();saveQ();
 for(var qk in Q){SYNC[qk]="retry";}
-var BY={};GROUPS.forEach(function(g){g.students.forEach(function(st){BY[g.id+":"+st.d]={tab:g.tab,name:st.s};});});
+rebuild();
 function k(g,s){return g+":"+s;}
 function has(key){return typeof S.grades[key]==="number";}
+function normName(s){return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim().toUpperCase();}
+function migrateKeys(obj){
+  if(!obj||typeof obj!=="object")return {};
+  var out={},consumed={};
+  GROUPS.forEach(function(g){
+    g.students.forEach(function(st){
+      var canon=k(g.id,st.s);
+      Object.keys(obj).forEach(function(old){
+        var i=old.indexOf(":");
+        if(i<0||old.slice(0,i)!==g.id)return;
+        var name=old.slice(i+1);
+        if(normName(name)===normName(st.s)||normName(name)===normName(st.d)){out[canon]=obj[old];consumed[old]=true;}
+      });
+    });
+  });
+  Object.keys(obj).forEach(function(old){if(!consumed[old])out[old]=obj[old];});
+  return out;
+}
+function rebuild(){
+  TOTAL=GROUPS.reduce(function(s,g){return s+g.students.length},0);
+  BY={};
+  GROUPS.forEach(function(g){
+    g.students.sort(function(a,b){return a.d.localeCompare(b.d,"en",{sensitivity:"base"});});
+    g.students.forEach(function(st){BY[k(g.id,st.s)]={tab:g.tab,name:st.s};});
+  });
+}
+function applyState(res){
+  if(!res||!res.ok||!res.groups||!res.groups.length)return false;
+  var next=[];
+  for(var i=0;i<res.groups.length;i++){
+    var g=res.groups[i];
+    if(!g||!g.tab||!g.students)continue;
+    var students=[];
+    for(var j=0;j<g.students.length;j++){
+      var st=g.students[j];
+      if(!st||!st.s)continue;
+      students.push({d:st.d||st.s,s:String(st.s).replace(/\s+/g," ").trim()});
+    }
+    if(!students.length)continue;
+    next.push({id:g.id||String(g.tab).toLowerCase(),name:g.name||g.tab,tab:g.tab,students:students});
+  }
+  if(!next.length)return false;
+  GROUPS=next;
+  rebuild();
+  S.grades=migrateKeys(S.grades);save();
+  Q=migrateKeys(Q);saveQ();
+  var grades={};
+  res.groups.forEach(function(g){
+    var id=g.id||String(g.tab).toLowerCase();
+    (g.students||[]).forEach(function(st){
+      if(!st||!st.s)return;
+      if(typeof st.grade==="number"&&isFinite(st.grade)) grades[k(id,String(st.s).replace(/\s+/g," ").trim())]=st.grade;
+    });
+  });
+  REMOTE.grades=grades;REMOTE.loaded=true;
+  return true;
+}
+function fetchState(){
+  if(!SYNC_ON)return;
+  var ctl=typeof AbortController!=="undefined"?new AbortController():null;
+  var to=setTimeout(function(){if(ctl)ctl.abort();},20000);
+  fetch(WEBAPP_URL+(WEBAPP_URL.indexOf("?")>=0?"&":"?")+"action=state&token="+encodeURIComponent(SYNC_TOKEN),{method:"GET",redirect:"follow",signal:ctl?ctl.signal:undefined})
+    .then(function(r){return r.json();})
+    .then(function(res){clearTimeout(to);if(applyState(res))render();})
+    .catch(function(){clearTimeout(to);});
+}
+function startStatePoll(){
+  fetchState();
+  clearInterval(stateTimer);
+  if(SYNC_ON)stateTimer=setInterval(fetchState,45000);
+}
 function isDone(key){
-  if(!has(key))return false;
-  if(!SYNC_ON)return true;
   if(Q[key])return false;
   var s=SYNC[key];
   if(s==="saving"||s==="retry"||(s&&s.indexOf("error:")===0))return false;
-  return true;
+  if(has(key))return true;
+  return Object.prototype.hasOwnProperty.call(REMOTE.grades,key);
 }
 function cardEl(key){
   var cards=document.querySelectorAll("[data-card]");
@@ -158,10 +230,10 @@ var $=function(id){return document.getElementById(id);};
 function output(){
   var L=["Notebook Check ("+MONTH+", out of "+MAX_NOTES+") - "+S.date.trim()+" - Helper: "+(S.helper.trim()||"(name)")];
   GROUPS.forEach(function(g){
-    var done=g.students.filter(function(st){return has(k(g.id,st.d));});
+    var done=g.students.filter(function(st){return has(k(g.id,st.s));});
     if(!done.length)return;
     L.push("");L.push("["+g.name+"]");
-    done.forEach(function(st){L.push(st.d+": "+S.grades[k(g.id,st.d)]);});
+    done.forEach(function(st){L.push(st.d+": "+S.grades[k(g.id,st.s)]);});
   });
   return L.join("\n");
 }
@@ -190,10 +262,10 @@ function syncSummary(){
 function render(){
   var q=query.trim().toLowerCase(),html="",total=0;
   GROUPS.forEach(function(g){
-    var gd=g.students.filter(function(st){return has(k(g.id,st.d));}).length;total+=gd;
+    var gd=g.students.filter(function(st){return isDone(k(g.id,st.s));}).length;total+=gd;
     var gm=q&&g.name.toLowerCase().indexOf(q)>=0;
     var list=g.students.filter(function(st){
-      var key=k(g.id,st.d);
+      var key=k(g.id,st.s);
       var nameHit=st.d.toLowerCase().indexOf(q)>=0;
       if(q&&!gm&&!nameHit)return false;
       var hold=HOLD[key];
@@ -204,7 +276,7 @@ function render(){
     });
     if(!list.length){
       if(q&&!gm)return;
-      if(g.students.some(function(st){return !isDone(k(g.id,st.d));}))return;
+      if(g.students.some(function(st){return !isDone(k(g.id,st.s));}))return;
     }
     var pct=Math.round(gd/g.students.length*100);
     html+='<section class="group'+(closed[g.id]?' closed':'')+'" id="'+g.id+'"><button class="ghead" data-toggle="'+g.id+'" aria-expanded="'+(!closed[g.id])+'"><span class="t">'+esc(g.name)+' · '+g.students.length+'</span><span class="chev">▼</span></button><div class="gcap">Graded '+gd+' of '+g.students.length+'</div><div class="bar"><div style="width:'+pct+'%"></div></div><div class="gbody">';
@@ -212,7 +284,7 @@ function render(){
       html+='<div class="gdone">All done</div>';
     }else{
     list.forEach(function(st){
-      var key=k(g.id,st.d),isG=has(key),n=S.grades[key],holding=HOLD[key]&&HOLD[key].phase==="show",chips="";
+      var key=k(g.id,st.s),isG=has(key),n=S.grades[key],holding=HOLD[key]&&HOLD[key].phase==="show",chips="";
       if(holding){
         html+='<div class="card" data-card="'+esc(key)+'"><div class="top"><span class="nm">'+esc(st.d)+'</span><span class="st"><span class="ok submitted-msg">✓ Submitted</span></span></div></div>';
         return;
@@ -262,7 +334,7 @@ function send(key,job){
     clearTimeout(to);inflight[key]=false;
     var cur=Q[key];
     if(res&&res.ok){
-      if(cur&&cur.seq===seq){delete Q[key];SYNC[key]="saved";if(job.v!==null&&job.v!=="")holdThenHide(key);}
+      if(cur&&cur.seq===seq){delete Q[key];SYNC[key]="saved";if(job.v!==null&&job.v!==""){REMOTE.grades[key]=job.v;holdThenHide(key);}else{delete REMOTE.grades[key];}}
     }else{
       var code=res&&res.error||"server_error";
       if(code==="busy"||code==="server_error"){fail(key,seq);}
@@ -278,7 +350,7 @@ function fail(key,seq){
   SYNC[key]="retry";
 }
 window.addEventListener("online",function(){Object.keys(Q).forEach(function(x){Q[x].t=0;});pump();});
-document.addEventListener("visibilitychange",function(){if(!document.hidden)pump();});
+document.addEventListener("visibilitychange",function(){if(!document.hidden){pump();fetchState();}});
 
 $("groups").addEventListener("click",function(e){
   var b=e.target.closest("button");if(!b)return;
@@ -313,7 +385,7 @@ $("reset").addEventListener("click",function(){
   S={helper:S.helper,date:today(),grades:{}};SYNC={};HOLD={};$("date").value=S.date;save();render();
 });
 $("totop").addEventListener("click",function(){window.scrollTo({top:0,behavior:"smooth"});});
-render();pump();
+rebuild();render();pump();startStatePoll();
 })();
 </script>
 </body>
